@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Research Assistant — Multi-Agent Pipeline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <!-- ── Background Grid ─────────────────────────────────────────── -->
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <!-- ── Header ─────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">⬡</span>
+        <span class="logo-text">ResearchOS</span>
+        <span class="logo-tag">multi-agent</span>
+      </div>
+      <nav class="header-nav">
+        <div class="status-dot" id="statusDot" title="API Status"></div>
+        <span class="status-label" id="statusLabel">connecting...</span>
+        <a href="/docs" target="_blank" class="nav-link">API Docs</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ── Main ───────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Hero / Search Panel -->
+    <section class="hero">
+      <h1 class="hero-title">
+        Intelligent Research,<br/>
+        <span class="hero-accent">Fully Automated.</span>
+      </h1>
+      <p class="hero-sub">
+        A coordinated pipeline of AI agents — search, synthesize, verify —
+        delivering fact-checked research reports in seconds.
+      </p>
+
+      <div class="search-card" id="searchCard">
+        <div class="search-row">
+          <textarea
+            id="queryInput"
+            class="query-input"
+            placeholder="Ask anything — e.g. &quot;Latest advances in quantum error correction 2024&quot;"
+            rows="3"
+            maxlength="1000"
+          ></textarea>
+          <div class="search-controls">
+            <label class="depth-label">Depth</label>
+            <div class="depth-toggle">
+              <button class="depth-btn active" data-depth="advanced">Advanced</button>
+              <button class="depth-btn" data-depth="basic">Basic</button>
+            </div>
+            <button class="run-btn" id="runBtn" onclick="runResearch()">
+              <span class="run-btn-text">Run Research</span>
+              <span class="run-btn-icon">→</span>
+            </button>
+          </div>
+        </div>
+        <div class="char-count"><span id="charCount">0</span> / 1000</div>
+      </div>
+
+      <!-- Pipeline Visualizer -->
+      <div class="pipeline-track" id="pipelineTrack">
+        <div class="pipeline-step" id="step-search" data-step="search">
+          <div class="step-dot"></div>
+          <div class="step-info">
+            <span class="step-name">Search</span>
+            <span class="step-detail" id="step-search-detail">Tavily API</span>
+          </div>
+        </div>
+        <div class="pipeline-line" id="line-1"></div>
+        <div class="pipeline-step" id="step-summarize" data-step="summarize">
+          <div class="step-dot"></div>
+          <div class="step-info">
+            <span class="step-name">Summarize</span>
+            <span class="step-detail" id="step-summarize-detail">GPT-4o</span>
+          </div>
+        </div>
+        <div class="pipeline-line" id="line-2"></div>
+        <div class="pipeline-step" id="step-factcheck" data-step="factcheck">
+          <div class="step-dot"></div>
+          <div class="step-info">
+            <span class="step-name">Fact-Check</span>
+            <span class="step-detail" id="step-factcheck-detail">GPT-4o</span>
+          </div>
+        </div>
+        <div class="pipeline-line" id="line-3"></div>
+        <div class="pipeline-step" id="step-report" data-step="report">
+          <div class="step-dot"></div>
+          <div class="step-info">
+            <span class="step-name">Report</span>
+            <span class="step-detail" id="step-report-detail">Ready</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Results Panel ─────────────────────────────────────────── -->
+    <section class="results-panel" id="resultsPanel" hidden>
+
+      <!-- Report Header -->
+      <div class="report-header">
+        <div class="report-meta">
+          <span class="report-verdict" id="reportVerdict"></span>
+          <span class="report-confidence" id="reportConfidence"></span>
+          <span class="report-latency" id="reportLatency"></span>
+        </div>
+        <div class="report-actions">
+          <button class="action-btn" onclick="copyReport()">Copy</button>
+          <button class="action-btn" onclick="downloadReport()">Download</button>
+          <button class="action-btn secondary" onclick="clearResults()">New Query</button>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="summary" onclick="switchTab('summary')">Summary</button>
+        <button class="tab" data-tab="sources" onclick="switchTab('sources')">
+          Sources <span class="tab-badge" id="sourcesBadge">0</span>
+        </button>
+        <button class="tab" data-tab="factcheck" onclick="switchTab('factcheck')">Fact-Check</button>
+        <button class="tab" data-tab="raw" onclick="switchTab('raw')">Raw JSON</button>
+      </div>
+
+      <!-- Tab: Summary -->
+      <div class="tab-panel active" id="tab-summary">
+        <div class="summary-direct-answer" id="directAnswer" hidden>
+          <span class="direct-answer-label">⚡ Direct Answer</span>
+          <p id="directAnswerText"></p>
+        </div>
+        <div class="summary-body" id="summaryText"></div>
+        <div class="key-points" id="keyPointsList"></div>
+        <div class="entities-grid" id="entitiesGrid"></div>
+      </div>
+
+      <!-- Tab: Sources -->
+      <div class="tab-panel" id="tab-sources" hidden>
+        <div class="sources-list" id="sourcesList"></div>
+      </div>
+
+      <!-- Tab: Fact Check -->
+      <div class="tab-panel" id="tab-factcheck" hidden>
+        <div class="fact-check-header" id="factCheckHeader"></div>
+        <div class="claims-list" id="claimsList"></div>
+        <div class="contradictions-block" id="contradictionsBlock" hidden>
+          <h4 class="block-title">⚠️ Contradictions</h4>
+          <ul id="contradictionsList"></ul>
+        </div>
+        <div class="unverified-block" id="unverifiedBlock" hidden>
+          <h4 class="block-title">❓ Unverified Claims</h4>
+          <ul id="unverifiedList"></ul>
+        </div>
+      </div>
+
+      <!-- Tab: Raw JSON -->
+      <div class="tab-panel" id="tab-raw" hidden>
+        <pre class="raw-json" id="rawJson"></pre>
+      </div>
+    </section>
+
+    <!-- ── Error Panel ────────────────────────────────────────────── -->
+    <div class="error-panel" id="errorPanel" hidden>
+      <span class="error-icon">⚡</span>
+      <p class="error-message" id="errorMessage"></p>
+      <button class="action-btn" onclick="clearResults()">Try Again</button>
+    </div>
+
+    <!-- ── History Sidebar ────────────────────────────────────────── -->
+    <aside class="history-sidebar" id="historySidebar">
+      <h3 class="sidebar-title">Recent Queries</h3>
+      <ul class="history-list" id="historyList">
+        <li class="history-empty">No queries yet.</li>
+      </ul>
+    </aside>
+
+  </main>
+
+  <!-- ── Toast ──────────────────────────────────────────────────── -->
+  <div class="toast" id="toast"></div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

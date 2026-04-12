@@ -1,0 +1,253 @@
+{
+  "name": "Multi-Agent Research Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "research",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "id": "n8n-webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "research-pipeline-webhook",
+      "notes": "Entry point: receives POST /webhook/research with {query, search_depth, metadata}"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate and normalize the incoming research request\nconst body = $input.first().json.body || $input.first().json;\n\nif (!body.query || body.query.trim().length < 3) {\n  throw new Error('Invalid query: must be at least 3 characters');\n}\n\nconst normalized = {\n  query: body.query.trim(),\n  search_depth: body.search_depth || 'advanced',\n  use_cache: body.use_cache !== false,\n  notify_n8n: false,  // Avoid loop: don't re-notify n8n from pipeline\n  metadata: {\n    source: body.metadata?.source || 'n8n',\n    user_id: body.metadata?.user_id || 'anonymous',\n    timestamp: new Date().toISOString()\n  }\n};\n\nreturn [{ json: normalized }];"
+      },
+      "id": "n8n-validate-input",
+      "name": "Validate & Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "notes": "Validates required fields, sets defaults, prevents webhook loop"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.RESEARCH_API_URL }}/api/research/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.RESEARCH_API_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "search_depth",
+              "value": "={{ $json.search_depth }}"
+            },
+            {
+              "name": "use_cache",
+              "value": "={{ $json.use_cache }}"
+            },
+            {
+              "name": "notify_n8n",
+              "value": false
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": false
+            }
+          }
+        }
+      },
+      "id": "n8n-call-pipeline",
+      "name": "Call Research Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300],
+      "notes": "Calls FastAPI research endpoint. Timeout: 120s to allow full pipeline run"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-status",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n8n-check-status",
+      "name": "Check Pipeline Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "notes": "Routes: completed → format report | partial/failed → error handler"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format the research report into a clean output document\nconst report = $input.first().json;\n\nconst verdict = report.fact_check?.verdict || 'UNKNOWN';\nconst confidence = Math.round((report.overall_confidence || 0) * 100);\n\nconst sourceList = (report.sources || [])\n  .slice(0, 5)\n  .map((s, i) => `${i + 1}. [${s.title}](${s.url}) — Score: ${(s.score * 100).toFixed(0)}%`)\n  .join('\\n');\n\nconst keyPoints = (report.summary?.key_points || [])\n  .map((p, i) => `• ${p}`)\n  .join('\\n');\n\nconst formatted = {\n  // Metadata\n  query: report.query,\n  generated_at: report.completed_at,\n  latency_seconds: Math.round(report.total_latency_ms / 1000),\n  overall_confidence_pct: confidence,\n  verdict: verdict,\n  verdict_emoji: report.fact_check?.verdict_emoji || '❓',\n\n  // Formatted text sections\n  executive_summary: report.summary?.summary || 'No summary available.',\n  key_findings: keyPoints,\n  top_sources: sourceList,\n  fact_check_assessment: report.fact_check?.fact_check_summary || '',\n\n  // Structured data\n  key_entities: report.summary?.key_entities || {},\n  contradictions: report.fact_check?.contradictions || [],\n  unverified_claims: report.fact_check?.unverified_claims || [],\n\n  // Full report passthrough\n  _raw: report\n};\n\nreturn [{ json: formatted }];"
+      },
+      "id": "n8n-format-report",
+      "name": "Format Research Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200],
+      "notes": "Transforms raw pipeline output into formatted report with confidence % and verdict"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate a Markdown-formatted report document\nconst r = $input.first().json;\n\nconst md = `# Research Report\n\n**Query:** ${r.query}\n**Generated:** ${r.generated_at}\n**Confidence:** ${r.overall_confidence_pct}% ${r.verdict_emoji}\n**Verdict:** ${r.verdict}\n**Pipeline Time:** ${r.latency_seconds}s\n\n---\n\n## Executive Summary\n\n${r.executive_summary}\n\n## Key Findings\n\n${r.key_findings}\n\n## Sources\n\n${r.top_sources}\n\n## Fact-Check Assessment\n\n${r.fact_check_assessment || '_No fact-check data available._'}\n\n${r.contradictions.length > 0 ? '## ⚠️ Contradictions Found\\n\\n' + r.contradictions.map(c => '- ' + c).join('\\n') : ''}\n\n---\n*Generated by Multi-Agent Research Assistant*\n`;\n\nreturn [{ json: { ...r, markdown_report: md } }];"
+      },
+      "id": "n8n-generate-markdown",
+      "name": "Generate Markdown Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 200],
+      "notes": "Generates a Markdown document suitable for Notion, Google Docs, Slack, or email"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "n8n-respond-success",
+      "name": "Return Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 200],
+      "notes": "Returns the formatted report to the caller"
+    },
+    {
+      "parameters": {
+        "jsCode": "const report = $input.first().json;\nconst errors = report.errors || [];\n\nreturn [{\n  json: {\n    error: true,\n    status: report.status || 'failed',\n    query: report.query,\n    errors: errors,\n    message: errors.length > 0 ? errors.join('; ') : 'Pipeline returned partial results',\n    partial_data: {\n      sources_count: (report.sources || []).length,\n      has_summary: !!report.summary,\n      has_fact_check: !!report.fact_check\n    }\n  }\n}];"
+      },
+      "id": "n8n-handle-error",
+      "name": "Handle Partial/Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 420],
+      "notes": "Handles partial results or failed pipeline runs"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseCode": 206,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "n8n-respond-partial",
+      "name": "Return Partial Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 420],
+      "notes": "Returns 206 Partial Content for incomplete pipeline runs"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [{ "node": "Validate & Normalize Input", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validate & Normalize Input": {
+      "main": [
+        [{ "node": "Call Research Pipeline", "type": "main", "index": 0 }]
+      ]
+    },
+    "Call Research Pipeline": {
+      "main": [
+        [{ "node": "Check Pipeline Status", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Pipeline Status": {
+      "main": [
+        [{ "node": "Format Research Report", "type": "main", "index": 0 }],
+        [{ "node": "Handle Partial/Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Research Report": {
+      "main": [
+        [{ "node": "Generate Markdown Report", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate Markdown Report": {
+      "main": [
+        [{ "node": "Return Success Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Handle Partial/Error": {
+      "main": [
+        [{ "node": "Return Partial Response", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "multi-agent-research-assistant"
+  },
+  "pinData": {},
+  "versionId": "1.0.0",
+  "triggerCount": 1,
+  "tags": [
+    { "id": "research", "name": "research" },
+    { "id": "ai-pipeline", "name": "ai-pipeline" },
+    { "id": "multi-agent", "name": "multi-agent" }
+  ]
+}
