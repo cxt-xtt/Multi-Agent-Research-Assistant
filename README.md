@@ -1,3 +1,13 @@
+## 🌐 Live Demo
+👉 [Try it live](https://your-actual-railway-url.up.railway.app/dashboard)
+
+## 📊 Project Stats
+![Tests](https://img.shields.io/badge/tests-55%20passed-brightgreen)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
+![Docker](https://img.shields.io/badge/docker-ready-blue)
+![Railway](https://img.shields.io/badge/deployed-railway-blueviolet)
+
 # 🧠 Multi-Agent Research Assistant
 
 A production-grade, LLM-powered research pipeline that orchestrates specialized AI agents for **web search**, **summarization**, and **fact-checking** — reducing manual research time by **60%**.
