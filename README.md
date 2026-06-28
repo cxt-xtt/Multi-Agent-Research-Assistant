@@ -1,27 +1,20 @@
 多智能体协作研究助理（Multi-Agent Research Assistant）
 2025.06 — 2025.07
 
-技术栈：Python · LangGraph · CrewAI · FastAPI · Tavily API · GPT-4o-mini · Redis · LangSmith
+技术栈： Python · LangGraph · CrewAI · FastAPI · ChromaDB · GPT-4o-mini · Tavily API · Redis · LangSmith
 
 项目描述：
-本项目基于 palpriyanshu94/Multi-Agent-Research-Assistant 二次开发
-构建了一个基于 LangGraph 状态机 + CrewAI 多 Agent 协调的生产级 AI 研究系统。
-用户输入任意问题后，系统自动调度 Search → Summarize → FactCheck 三阶段流水线，
-通过 Tavily 实时搜索网页，GPT-4o-mini 生成结构化摘要，并逐条对照原文进行置信度
-评分，最终通过 FastAPI REST 接口和 Web Dashboard 输出研究报告。
-
+本项目基于 palpriyanshu94/Multi-Agent-Research-Assistant 二次开发。构建了一个基于 LangGraph 状态机 + CrewAI 多 Agent 协调的生产级 AI 研究系统。用户输入问题后，系统自动调度 Search → Summarize → FactCheck 三阶段流水线，通过 Tavily 实时搜索网页，GPT-4o-mini 生成结构化摘要并逐条对照原文进行置信度评分。在此基础上，扩展了用户知识库（ChromaDB RAG）与对话记忆模块，支持私有文档语义检索和跨轮次上下文理解，最终通过 FastAPI REST 接口和 Web Dashboard 输出带引用来源的研究报告。
 主要工作：
-- 设计三阶段 Agent 流水线架构（搜索员 → 摘要员 → 事实核查员），使用 LangGraph 状态
-  机编排执行顺序，CrewAI 处理并行 Agent 协调
-- 集成 Tavily Search API 实现实时网页搜索，包含去重、评分排序和结构化输出
-- 基于 GPT-4o-mini 构建结构化摘要生成与事实核查模块，每条结论输出 0-1 置信度评分
-- 开发 FastAPI RESTful 接口（/api/research、/health），配合 HTML Dashboard 实现
-  前后端交互，Swagger 文档自动生成
-- 集成 Redis 缓存层实现重复查询秒级响应，n8n webhook 支持下游自动化联动
-- 接入 LangSmith 全链路追踪，记录 Agent 执行耗时和 Token 消耗
-
+- 设计三阶段 Agent 流水线架构（SearchAgent → SummarizerAgent → FactCheckerAgent），使用 LangGraph 状态机编排执行顺序 + 条件路由，CrewAI 处理 Agent 并行协调
+- 集成 Tavily Search API 实现实时网页检索，包含 URL 去重、相关性评分排序和结构化输出
+- 基于 GPT-4o-mini 构建结构化摘要生成模块（JSON 格式：摘要正文 + 关键要点 + 实体提取 + 置信度）与事实核查模块，定义六级置信度标尺（0-1），逐条声明交叉验证并标记矛盾信息
+- 集成 ChromaDB 向量数据库实现用户隔离的 RAG 知识库，不同用户拥有独立 Collection，支持文档上传与语义检索，Pipeline 查询时自动注入知识库上下文
+- 实现对话记忆模块，基于 JSON 本地存储最近 10 轮问答记录，查询时自动拼接历史上下文，支持多轮追问
+- 开发 FastAPI RESTful 接口（`/api/research`、`/api/knowledge/upload-text`、`/health`），配合 HTML Dashboard 实现管道可视化与 Tab 式结果展示，Swagger 文档自动生成
+- 集成 Redis 缓存层实现重复查询秒级响应，LangSmith 全链路追踪记录各 Agent 执行耗时与 Token 消耗
 核心收获：
-掌握了 LangGraph 状态机编排、多 Agent 协作设计、REST API 开发和生产级可观测性搭建。
+掌握了 LangGraph 多节点状态机编排、多 Agent 协作设计、ChromaDB 向量检索（RAG）、对话上下文管理、FastAPI RESTful 开发和生产级可观测性搭建。
 ## 🌐 Live Demo
 👉 [Try it live](https://your-actual-railway-url.up.railway.app/dashboard)
 
