@@ -37,6 +37,7 @@ class PipelineStatus(str, Enum):
 
 class ResearchRequest(BaseModel):
     """Request body for POST /research"""
+    user_id: str = Field(default="default", description="用户ID")
     query: str = Field(
         ...,
         min_length=3,

@@ -56,10 +56,11 @@ async def run_research(
 
     try:
         report = await pipeline.run(
-            query=request.query,
-            search_depth=request.search_depth.value,
-            use_cache=request.use_cache,
-            notify_n8n=request.notify_n8n,
+             query=request.query,
+             user_id=request.user_id,        
+             search_depth=request.search_depth.value,
+             use_cache=request.use_cache,
+             notify_n8n=request.notify_n8n,
         )
     except Exception as exc:
         log.error("research_endpoint_error", error=str(exc))

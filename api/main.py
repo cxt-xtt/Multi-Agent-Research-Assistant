@@ -74,6 +74,9 @@ register_middleware(app)
 # ── Routers ────────────────────────────────────────────────────────────────────
 app.include_router(health_router)
 app.include_router(research_router, prefix="/api")
+from api.routes.knowledge import router as knowledge_router
+app.include_router(knowledge_router, prefix="/api")
+
 
 # ── Static Frontend ────────────────────────────────────────────────────────────
 _static_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "static")
